@@ -1,0 +1,338 @@
+<!-- Overlay de animación (GOL, FINAL, ETC) -->
+<div *ngIf="animationOverlayVisible" class="overlay" [ngClass]="animationClass">
+    <div class="overlay-content">
+        <div class="overlay-icon">⚽</div>
+        <div class="overlay-text">{{ animationText }}</div>
+    </div>
+</div>
+
+<div class="app-container">
+
+    <!-- Header / Navbar -->
+    <header class="main-header">
+        <div class="logo">
+            <span class="icon">🏆</span> SPORT<span class="highlight">DASH</span>
+        </div>
+        <div class="user-profile">ADMIN</div>
+    </header>
+
+    <div class="dashboard-grid">
+
+        <!-- COLUMNA IZQUIERDA: Listas -->
+        <aside class="sidebar-matches">
+            <div class="card glass-panel">
+                <h3 class="section-title text-green">🟢 En Vivo</h3>
+                <ul class="match-list">
+                    <li *ngFor="let match of inProgressMatches" class="match-item live-border">
+                        <div class="match-info">
+                            <span class="teams"><strong>#{{ match.matchId }}</strong> {{ match.homeTeamName }} vs {{
+                                match.awayTeamName }}</span>
+                            <span class="score-badge live">{{ match.homeScore }}-{{ match.awayScore }}</span>
+                            <span class="live-indicator">EN VIVO</span>
+                        </div>
+                        <button class="btn-icon" (click)="viewMatch(match.matchId)">👁️</button>
+                    </li>
+                    <li *ngIf="inProgressMatches.length === 0" class="empty">Sin partidos en curso.</li>
+                </ul>
+
+                <h3 class="section-title text-red mt-4">🔴 Finalizados</h3>
+                <ul class="match-list">
+                    <li *ngFor="let match of finishedMatches" class="match-item finished-border">
+                        <div class="match-info">
+                            <span class="teams"><strong>#{{ match.matchId }}</strong> {{ match.homeTeamName }} vs {{
+                                match.awayTeamName }}</span>
+                            <span class="score-badge">{{ match.homeScore }}-{{ match.awayScore }}</span>
+                        </div>
+                        <button class="btn-icon" (click)="viewMatch(match.matchId)">👁️</button>
+                    </li>
+                    <li *ngIf="finishedMatches.length === 0" class="empty">Sin historial reciente.</li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- COLUMNA CENTRAL: Cancha y Controles -->
+        <main class="main-content">
+
+            <!-- SECCION HERO: LA CANCHA Y MARCADOR -->
+            <section class="pitch-container">
+                <div class="pitch-board">
+                    <!-- Líneas decorativas de la cancha -->
+                    <div class="pitch-line center-line"></div>
+                    <div class="pitch-circle"></div>
+                    <div class="pitch-corner top-left"></div>
+                    <div class="pitch-corner top-right"></div>
+                    <div class="pitch-corner bottom-left"></div>
+                    <div class="pitch-corner bottom-right"></div>
+
+                    <!-- Balón Central Decorativo -->
+                    <div class="center-ball-decoration">⚽</div>
+
+                    <!-- Marcador Superpuesto -->
+                    <div class="scoreboard-overlay">
+                        <div class="team home">
+                            <div class="team-name">{{ currentMatchData?.homeTeamName || 'LOCAL' }}</div>
+                            <div class="team-color-strip home-strip"></div>
+                        </div>
+
+                        <div class="score-box">
+                            <div class="score-number">{{ currentMatchData?.homeScore || 0 }}</div>
+                            <div class="vs-divider">:</div>
+                            <div class="score-number">{{ currentMatchData?.awayScore || 0 }}</div>
+                            <div class="timer-badge" [ngClass]="{'live-pulse': currentMatchData?.status === 1}">
+                                {{ currentMatchData?.status === 1 ? 'EN VIVO' : (currentMatchData?.status === 2 ?
+                                'FINAL' : 'PREVIA') }}
+                            </div>
+                        </div>
+
+                        <div class="team away">
+                            <div class="team-name">{{ currentMatchData?.awayTeamName || 'VISITA' }}</div>
+                            <div class="team-color-strip away-strip"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Barra de Acciones Rápidas -->
+            <section class="action-bar glass-panel">
+                <div class="match-loader">
+                    <input type="number" [(ngModel)]="currentMatchId" placeholder="ID Partido" class="input-dark" />
+                    <button (click)="loadMatchBtn()" class="btn btn-blue">⚡ Sincronizar</button>
+                </div>
+
+                <div class="game-controls">
+                    <button (click)="startMatch()"
+                        [disabled]="currentMatchData && (currentMatchData.status === 1 || currentMatchData.status === 2)"
+                        class="btn btn-outline-blue">
+                        ▶ Iniciar
+                    </button>
+
+                    <button (click)="sendGoal()" [disabled]="!currentMatchData || currentMatchData.status !== 1"
+                        class="btn btn-goal">
+                        ⚽ GOL
+                    </button>
+
+                    <button (click)="sendCard()" [disabled]="!currentMatchData || currentMatchData.status !== 1"
+                        class="btn btn-yellow">
+                        🟨 Tarjeta
+                    </button>
+
+                    <button (click)="sendSubstitution()" [disabled]="!currentMatchData || currentMatchData.status !== 1"
+                        class="btn btn-purple">
+                        🔄 Cambio
+                    </button>
+
+                    <button (click)="endMatch()" [disabled]="!currentMatchData || currentMatchData.status !== 1"
+                        class="btn btn-red">
+                        🏁 Finalizar
+                    </button>
+
+                    <button (click)="createNewMatch()" class="btn btn-green-outline">
+                        ➕ Nuevo
+                    </button>
+                </div>
+            </section>
+
+            <!-- Estadísticas Grid -->
+            <section class="stats-grid">
+                <div class="stat-card glass-panel">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value">{{ currentMatchData?.totalGoals || 0 }}</div>
+                    <div class="stat-label">Goles Totales</div>
+                </div>
+                <div class="stat-card glass-panel">
+                    <div class="stat-icon">🟨</div>
+                    <div class="stat-value">{{ currentMatchData?.totalYellowCards || 0 }}</div>
+                    <div class="stat-label">Amarillas</div>
+                </div>
+                <div class="stat-card glass-panel">
+                    <div class="stat-icon">🟥</div>
+                    <div class="stat-value">{{ currentMatchData?.totalRedCards || 0 }}</div>
+                    <div class="stat-label">Rojas</div>
+                </div>
+                <div class="stat-card glass-panel">
+                    <div class="stat-icon">🔄</div>
+                    <div class="stat-value">{{ currentMatchData?.totalSubstitutions || 0 }}</div>
+                    <div class="stat-label">Cambios</div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- COLUMNA DERECHA: Cuotas / Detalles -->
+        <aside class="sidebar-odds">
+            <div class="card glass-panel odds-panel">
+                <h3 class="section-title">💰 Cuotas en Vivo</h3>
+                <div class="odds-display">
+                    <div class="odd-box">
+                        <span class="odd-label">1</span>
+                        <span class="odd-val">{{ currentOdds.homeWin > 0 ? currentOdds.homeWin.toFixed(2) : '--'
+                            }}</span>
+                    </div>
+                    <div class="odd-box">
+                        <span class="odd-label">X</span>
+                        <span class="odd-val">{{ currentOdds.draw > 0 ? currentOdds.draw.toFixed(2) : '--' }}</span>
+                    </div>
+                    <div class="odd-box">
+                        <span class="odd-label">2</span>
+                        <span class="odd-val">{{ currentOdds.awayWin > 0 ? currentOdds.awayWin.toFixed(2) : '--'
+                            }}</span>
+                    </div>
+                </div>
+                <button (click)="refreshStats()" class="btn btn-sm btn-ghost mt-3">Refrescar Datos</button>
+            </div>
+        </aside>
+
+    </div> <!-- End Grid -->
+
+    <!-- MODALES (Estilizados Dark) -->
+
+    <!-- Modal Crear -->
+    <div *ngIf="showCreateMatchModal" class="modal-overlay" (click)="showCreateMatchModal = false">
+        <div class="modal glass-modal" (click)="$event.stopPropagation()">
+            <h3>📅 Nuevo Encuentro</h3>
+            <form (ngSubmit)="submitCreateMatch()">
+                <div class="form-group">
+                    <label>Local</label>
+                    <input type="text" [(ngModel)]="newMatchForm.homeTeamName" name="home" class="input-dark"
+                        placeholder="Ej. Real Madrid">
+                </div>
+                <div class="form-group">
+                    <label>Visitante</label>
+                    <input type="text" [(ngModel)]="newMatchForm.awayTeamName" name="away" class="input-dark"
+                        placeholder="Ej. Barcelona">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" (click)="showCreateMatchModal = false" class="btn btn-ghost">Cancelar</button>
+                    <button type="submit" class="btn btn-green">Crear Partido</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Gol -->
+    <div *ngIf="showGoalModal" class="modal-overlay" (click)="showGoalModal = false">
+        <div class="modal glass-modal" (click)="$event.stopPropagation()">
+            <div class="modal-header-icon">⚽</div>
+            <h3>Gritalo! ¿Quién marcó?</h3>
+            <form (ngSubmit)="submitGoal()">
+                <div class="form-group">
+                    <label>Equipo</label>
+                    <select [(ngModel)]="goalForm.teamId" name="teamId" class="input-dark">
+                        <option [ngValue]="currentMatchData?.homeTeamId">{{ currentMatchData?.homeTeamName }}</option>
+                        <option [ngValue]="currentMatchData?.awayTeamId">{{ currentMatchData?.awayTeamName }}</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Jugador (#)</label>
+                    <input type="number" [(ngModel)]="goalForm.playerId" name="player" class="input-dark">
+                </div>
+                <div class="form-group">
+                    <label>Minuto</label>
+                    <input type="number" [(ngModel)]="goalForm.minute" name="min" class="input-dark" value="45">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" (click)="showGoalModal = false" class="btn btn-ghost">Cancelar</button>
+                    <button type="submit" class="btn btn-goal">Confirmar GOL</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Tarjeta -->
+    <div *ngIf="showCardModal" class="modal-overlay" (click)="showCardModal = false">
+        <div class="modal glass-modal" (click)="$event.stopPropagation()">
+            <div class="modal-header-icon">🟨</div>
+            <h3>¡Tarjeta! ¿Quién la recibió?</h3>
+            <form (ngSubmit)="submitCard()">
+                <div class="form-group">
+                    <label>Equipo</label>
+                    <select [(ngModel)]="cardForm.teamId" name="teamId" class="input-dark">
+                        <option [ngValue]="currentMatchData?.homeTeamId">{{ currentMatchData?.homeTeamName }}</option>
+                        <option [ngValue]="currentMatchData?.awayTeamId">{{ currentMatchData?.awayTeamName }}</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Jugador (#)</label>
+                    <input type="number" [(ngModel)]="cardForm.playerId" name="player" class="input-dark">
+                </div>
+                <div class="form-group">
+                    <label>Tipo de Tarjeta</label>
+                    <select [(ngModel)]="cardForm.cardType" name="cardType" class="input-dark">
+                        <option [ngValue]="0">Amarilla</option>
+                        <option [ngValue]="1">Roja</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Minuto</label>
+                    <input type="number" [(ngModel)]="cardForm.minute" name="min" class="input-dark" value="30">
+                </div>
+                <div class="json-preview">
+                    <h4>JSON a enviar:</h4>
+                    <pre>{{ getCardBody() | json }}</pre>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" (click)="showCardModal = false" class="btn btn-ghost">Cancelar</button>
+                    <button type="submit" [disabled]="isSubmittingCard" class="btn btn-yellow">Confirmar
+                        Tarjeta</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Sustitución -->
+    <div *ngIf="showSubstitutionModal" class="modal-overlay" (click)="showSubstitutionModal = false">
+        <div class="modal glass-modal" (click)="$event.stopPropagation()">
+            <div class="modal-header-icon">🔄</div>
+            <h3>Cambio de Jugador</h3>
+            <form (ngSubmit)="submitSubstitution()">
+                <div class="form-group">
+                    <label>Equipo</label>
+                    <select [(ngModel)]="substitutionForm.teamId" name="teamId" class="input-dark">
+                        <option [ngValue]="currentMatchData?.homeTeamId">{{ currentMatchData?.homeTeamName }}</option>
+                        <option [ngValue]="currentMatchData?.awayTeamId">{{ currentMatchData?.awayTeamName }}</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Jugador Sale (#)</label>
+                    <input type="number" [(ngModel)]="substitutionForm.playerOutId" name="playerOut" class="input-dark">
+                </div>
+                <div class="form-group">
+                    <label>Jugador Entra (#)</label>
+                    <input type="number" [(ngModel)]="substitutionForm.playerInId" name="playerIn" class="input-dark">
+                </div>
+                <div class="form-group">
+                    <label>Minuto</label>
+                    <input type="number" [(ngModel)]="substitutionForm.minute" name="min" class="input-dark" value="60">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" (click)="showSubstitutionModal = false"
+                        class="btn btn-ghost">Cancelar</button>
+                    <button type="submit" class="btn btn-purple">Confirmar Cambio</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Finalizar -->
+    <div *ngIf="showEndModal" class="modal-overlay" (click)="showEndModal = false">
+        <div class="modal glass-modal" (click)="$event.stopPropagation()">
+            <div class="modal-header-icon">🏁</div>
+            <h3>Finalizar Partido</h3>
+            <form (ngSubmit)="submitEnd()">
+                <div class="form-group">
+                    <label>Marcador Final Local</label>
+                    <input type="number" [value]="currentMatchData?.homeScore || 0" name="finalHome" class="input-dark" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Marcador Final Visitante</label>
+                    <input type="number" [value]="currentMatchData?.awayScore || 0" name="finalAway" class="input-dark" readonly>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" (click)="showEndModal = false" class="btn btn-ghost">Cancelar</button>
+                    <button type="submit" class="btn btn-red">Finalizar Partido</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
