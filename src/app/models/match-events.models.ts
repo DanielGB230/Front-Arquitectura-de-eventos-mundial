@@ -9,13 +9,13 @@ export interface StartMatchRequest {
 }
 
 export interface EndMatchRequest {
-    matchId: number;
+    matchId: string;
     finalHomeScore: number;
     finalAwayScore: number;
 }
 
 export interface GoalRequest {
-    matchId: number;
+    matchId: string;
     teamId: number;
     playerId: number;
     minute: number;
@@ -24,7 +24,7 @@ export interface GoalRequest {
 }
 
 export interface CardRequest {
-    matchId: number;
+    matchId: string;
     teamId: number;
     playerId: number;
     cardType: number; // 0 for Yellow, 1 for Red
@@ -32,7 +32,7 @@ export interface CardRequest {
 }
 
 export interface SubstitutionRequest {
-    matchId: number;
+    matchId: string;
     teamId: number;
     playerInId: number;
     playerOutId: number;
@@ -40,7 +40,7 @@ export interface SubstitutionRequest {
 }
 
 export interface MatchStatistics {
-    matchId: number;
+    matchId: string;
     totalGoals: number;
     totalYellowCards: number;
     totalRedCards: number;
@@ -49,7 +49,7 @@ export interface MatchStatistics {
 }
 
 export interface Match {
-    matchId: number;
+    matchId: string;
     homeTeamName: string;
     awayTeamName: string;
     homeScore: number;

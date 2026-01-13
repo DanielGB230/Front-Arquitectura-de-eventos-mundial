@@ -25,7 +25,7 @@
                 <ul class="match-list">
                     <li *ngFor="let match of inProgressMatches" class="match-item live-border">
                         <div class="match-info">
-                            <span class="teams"><strong>#{{ match.matchId }}</strong> {{ match.homeTeamName }} vs {{
+                            <span class="teams"><strong></strong> {{ match.homeTeamName }} vs {{
                                 match.awayTeamName }}</span>
                             <span class="score-badge live">{{ match.homeScore }}-{{ match.awayScore }}</span>
                             <span class="live-indicator">EN VIVO</span>
@@ -39,7 +39,7 @@
                 <ul class="match-list">
                     <li *ngFor="let match of finishedMatches" class="match-item finished-border">
                         <div class="match-info">
-                            <span class="teams"><strong>#{{ match.matchId }}</strong> {{ match.homeTeamName }} vs {{
+                            <span class="teams"><strong></strong> {{ match.homeTeamName }} vs {{
                                 match.awayTeamName }}</span>
                             <span class="score-badge">{{ match.homeScore }}-{{ match.awayScore }}</span>
                         </div>
@@ -321,11 +321,13 @@
             <form (ngSubmit)="submitEnd()">
                 <div class="form-group">
                     <label>Marcador Final Local</label>
-                    <input type="number" [value]="currentMatchData?.homeScore || 0" name="finalHome" class="input-dark" readonly>
+                    <input type="number" [value]="currentMatchData?.homeScore || 0" name="finalHome" class="input-dark"
+                        readonly>
                 </div>
                 <div class="form-group">
                     <label>Marcador Final Visitante</label>
-                    <input type="number" [value]="currentMatchData?.awayScore || 0" name="finalAway" class="input-dark" readonly>
+                    <input type="number" [value]="currentMatchData?.awayScore || 0" name="finalAway" class="input-dark"
+                        readonly>
                 </div>
                 <div class="modal-actions">
                     <button type="button" (click)="showEndModal = false" class="btn btn-ghost">Cancelar</button>

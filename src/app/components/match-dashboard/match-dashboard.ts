@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -14,7 +14,7 @@ import { SignalRService } from '../../services/signalr.service';
   styleUrl: './match-dashboard.css',
 })
 export class MatchDashboard implements OnInit, OnDestroy {
-  currentMatchId: number | null = null;
+  currentMatchId: string | null = null;
   matchDetails: any = {};
   inProgressMatches: any[] = [];
   finishedMatches: any[] = [];
@@ -67,7 +67,8 @@ export class MatchDashboard implements OnInit, OnDestroy {
 
   constructor(
     private matchService: MatchService,
-    private signalRService: SignalRService
+    private signalRService: SignalRService,
+    private cd: ChangeDetectorRef
   ) { }
 
   ngOnInit(): void {
@@ -82,8 +83,8 @@ export class MatchDashboard implements OnInit, OnDestroy {
 
   setupSignalRListeners(): void {
     this.signalRService.onMatchStarted((message: any) => {
-      const eventData = JSON.parse(message);
-      this.logEvent(`🔔 INICIO: ${eventData.homeTeamName} vs ${eventData.awayTeamName}`, true);
+      const eventData = message;
+      this.logEvent(`🔔 INICIO: ${eventData.homeTeamName || eventData.HomeTeamName} vs ${eventData.awayTeamName || eventData.AwayTeamName}`, true);
       Swal.fire({
         title: 'Partido Iniciado',
         text: `${eventData.homeTeamName} vs ${eventData.awayTeamName}`,
@@ -94,7 +95,8 @@ export class MatchDashboard implements OnInit, OnDestroy {
         timer: 3000
       });
       this.loadMatchLists();
-      if (this.currentMatchId && eventData.matchId === this.currentMatchId) {
+      const payloadId = this.getMatchIdFromPayload(eventData);
+      if (this.currentMatchId && payloadId === this.currentMatchId) {
         this.matchDetails[this.currentMatchId] = {
           homeTeamName: eventData.homeTeamName,
           awayTeamName: eventData.awayTeamName,
@@ -108,8 +110,8 @@ export class MatchDashboard implements OnInit, OnDestroy {
     });
 
     this.signalRService.onMatchEnded((message: any) => {
-      const eventData = JSON.parse(message);
-      this.logEvent(`🏁 FINAL: ${eventData.finalHomeScore} - ${eventData.finalAwayScore}`, true);
+      const eventData = message;
+      this.logEvent(`🏁 FINAL: ${eventData.finalHomeScore ?? eventData.FinalHomeScore} - ${eventData.finalAwayScore ?? eventData.FinalAwayScore}`, true);
       Swal.fire({
         title: 'Partido Finalizado',
         text: `Resultado: ${eventData.finalHomeScore} - ${eventData.finalAwayScore}`,
@@ -120,20 +122,33 @@ export class MatchDashboard implements OnInit, OnDestroy {
         timer: 3000
       });
       this.loadMatchLists();
-      if (this.currentMatchId && eventData.matchId === this.currentMatchId) {
+      const payloadIdEnd = this.getMatchIdFromPayload(eventData);
+      if (this.currentMatchId && payloadIdEnd === this.currentMatchId) {
         if (this.matchDetails[this.currentMatchId]) {
           this.matchDetails[this.currentMatchId].homeScore = eventData.finalHomeScore;
           this.matchDetails[this.currentMatchId].awayScore = eventData.finalAwayScore;
           this.matchDetails[this.currentMatchId].status = 2;
         }
         this.updateMatchInfoDisplay();
+        // Mueve el partido de inProgress a finished localmente
+        const index = this.inProgressMatches.findIndex(m => m.matchId === eventData.matchId);
+        if (index !== -1) {
+          const match = this.inProgressMatches.splice(index, 1)[0];
+          match.homeScore = eventData.finalHomeScore;
+          match.awayScore = eventData.finalAwayScore;
+          match.status = 2;
+          this.finishedMatches.unshift(match);
+        }
         this.fetchMatchAndStats(this.currentMatchId);
       }
     });
 
     this.signalRService.onGoalEvent((message: any) => {
-      const eventData = JSON.parse(message);
-      this.logEvent(`⚽ GOL! (Min ${eventData.minute}) ${eventData.newHomeScore} - ${eventData.newAwayScore}`, true);
+      const eventData = message;
+      const minute = eventData.minute ?? eventData.Minute;
+      const newHome = eventData.newHomeScore ?? eventData.NewHomeScore ?? eventData.HomeScore ?? eventData.HomeScore;
+      const newAway = eventData.newAwayScore ?? eventData.NewAwayScore ?? eventData.AwayScore ?? eventData.AwayScore;
+      this.logEvent(`⚽ GOL! (Min ${minute}) ${newHome} - ${newAway}`, true);
       Swal.fire({
         title: '¡GOL!',
         text: `Minuto ${eventData.minute}: ${eventData.newHomeScore} - ${eventData.newAwayScore}`,
@@ -143,21 +158,32 @@ export class MatchDashboard implements OnInit, OnDestroy {
         showConfirmButton: false,
         timer: 3000
       });
-      if (this.currentMatchId && eventData.matchId === this.currentMatchId) {
+      const payloadIdGoal = this.getMatchIdFromPayload(eventData);
+      if (this.currentMatchId && payloadIdGoal === this.currentMatchId) {
         this.triggerVisualEffect('goal', 'GOL!!!!');
         this.animateScoreBoard();
         if (this.matchDetails[this.currentMatchId]) {
-          this.matchDetails[this.currentMatchId].homeScore = eventData.newHomeScore;
-          this.matchDetails[this.currentMatchId].awayScore = eventData.newAwayScore;
+          this.matchDetails[this.currentMatchId].homeScore = newHome;
+          this.matchDetails[this.currentMatchId].awayScore = newAway;
+          this.matchDetails[this.currentMatchId].totalGoals = (this.matchDetails[this.currentMatchId].totalGoals || 0) + 1;
+          this.matchDetails[this.currentMatchId].totalEvents = (this.matchDetails[this.currentMatchId].totalEvents || 0) + 1;
         }
         this.updateMatchInfoDisplay();
         this.fetchMatchAndStats(this.currentMatchId);
       }
+      // Actualiza el score en la lista lateral para todos los usuarios
+      const payloadIdForList = this.getMatchIdFromPayload(eventData);
+      const matchInList = this.inProgressMatches.find(m => m.matchId === payloadIdForList);
+      if (matchInList) {
+        matchInList.homeScore = newHome;
+        matchInList.awayScore = newAway;
+      }
     });
 
     this.signalRService.onCardEvent((message: any) => {
-      const eventData = JSON.parse(message);
-      const cardType = eventData.cardType === 0 ? 'Amarilla' : 'Roja';
+      const eventData = message;
+      const cardTypeVal = eventData.cardType ?? eventData.CardType;
+      const cardType = cardTypeVal === 0 ? 'Amarilla' : 'Roja';
       this.logEvent(`🃏 Tarjeta ${cardType} (Min ${eventData.minute})`, true);
       Swal.fire({
         title: 'Tarjeta',
@@ -168,16 +194,27 @@ export class MatchDashboard implements OnInit, OnDestroy {
         showConfirmButton: false,
         timer: 3000
       });
-      if (this.currentMatchId && eventData.matchId === this.currentMatchId) {
+      const payloadIdCard = this.getMatchIdFromPayload(eventData);
+      if (this.currentMatchId && payloadIdCard === this.currentMatchId) {
         const visualType = eventData.cardType === 0 ? 'yellow' : 'red';
         const visualText = eventData.cardType === 0 ? 'AMARILLA' : 'ROJA';
         this.triggerVisualEffect(visualType, visualText);
+        // Actualiza localmente las estadísticas para tiempo real
+        if (this.matchDetails[this.currentMatchId]) {
+          if (cardTypeVal === 0) {
+            this.matchDetails[this.currentMatchId].totalYellowCards = (this.matchDetails[this.currentMatchId].totalYellowCards || 0) + 1;
+          } else {
+            this.matchDetails[this.currentMatchId].totalRedCards = (this.matchDetails[this.currentMatchId].totalRedCards || 0) + 1;
+          }
+          this.matchDetails[this.currentMatchId].totalEvents = (this.matchDetails[this.currentMatchId].totalEvents || 0) + 1;
+        }
+        this.updateMatchInfoDisplay();
         this.fetchMatchAndStats(this.currentMatchId);
       }
     });
 
     this.signalRService.onSubstitutionEvent((message: any) => {
-      const eventData = JSON.parse(message);
+      const eventData = message;
       this.logEvent(`🔄 Cambio (Min ${eventData.minute})`, true);
       Swal.fire({
         title: 'Cambio',
@@ -188,14 +225,22 @@ export class MatchDashboard implements OnInit, OnDestroy {
         showConfirmButton: false,
         timer: 3000
       });
-      if (this.currentMatchId && eventData.matchId === this.currentMatchId) {
+      const payloadIdSub = this.getMatchIdFromPayload(eventData);
+      if (this.currentMatchId && payloadIdSub === this.currentMatchId) {
+        // Actualiza localmente las estadísticas para tiempo real
+        if (this.matchDetails[this.currentMatchId]) {
+          this.matchDetails[this.currentMatchId].totalSubstitutions = (this.matchDetails[this.currentMatchId].totalSubstitutions || 0) + 1;
+          this.matchDetails[this.currentMatchId].totalEvents = (this.matchDetails[this.currentMatchId].totalEvents || 0) + 1;
+        }
+        this.updateMatchInfoDisplay();
         this.fetchMatchAndStats(this.currentMatchId);
       }
     });
 
     this.signalRService.onOddsUpdate((message: any) => {
-      const oddsData = JSON.parse(message);
-      if (this.currentMatchId && oddsData.matchId === this.currentMatchId) {
+      const oddsData = message;
+      const payloadIdOdds = this.getMatchIdFromPayload(oddsData);
+      if (this.currentMatchId && payloadIdOdds === this.currentMatchId) {
         this.currentOdds = {
           homeWin: oddsData.homeWin,
           draw: oddsData.draw,
@@ -210,12 +255,93 @@ export class MatchDashboard implements OnInit, OnDestroy {
     });
 
     this.signalRService.onMatchStatsUpdated((message: any) => {
-      // Handle match stats updated event, perhaps refresh stats
-      const statsData = message; // Already deserialized object
-      if (this.currentMatchId && statsData.matchId === this.currentMatchId) {
-        this.fetchMatchAndStats(this.currentMatchId);
+      // Handle match stats updated event, update stats locally for real-time
+      console.log('MatchStatsUpdated received:', message);
+      const statsData = message; // service deserializa
+      const payloadIdStats = this.getMatchIdFromPayload(statsData);
+      if (this.currentMatchId && payloadIdStats === this.currentMatchId) {
+        // Actualiza las estadísticas y scores con los datos del payload
+        if (this.matchDetails[this.currentMatchId]) {
+          this.matchDetails[this.currentMatchId] = {
+            ...this.matchDetails[this.currentMatchId],
+            homeScore: statsData.HomeScore ?? statsData.homeScore,
+            awayScore: statsData.AwayScore ?? statsData.awayScore,
+            totalGoals: statsData.TotalGoals ?? statsData.totalGoals,
+            totalYellowCards: statsData.TotalYellowCards ?? statsData.totalYellowCards,
+            totalRedCards: statsData.TotalRedCards ?? statsData.totalRedCards,
+            totalSubstitutions: statsData.TotalSubstitutions ?? statsData.totalSubstitutions,
+            totalEvents: statsData.TotalEvents ?? statsData.totalEvents
+          };
+        }
+        // Nuevo: procesar LatestEvent para mostrar detalle de la jugada
+        const latest = statsData.LatestEvent ?? statsData.latestEvent;
+        if (latest) {
+          const evType = latest.EventType ?? latest.eventType;
+          const minute = latest.Minute ?? latest.minute;
+          if (evType === 'Card') {
+            const playerId = latest.PlayerId ?? latest.playerId;
+            const cardTypeVal = latest.CardType ?? latest.cardType;
+            const cardLabel = cardTypeVal === 0 ? 'AMARILLA' : 'ROJA';
+            this.logEvent(`🃏 Tarjeta ${cardLabel} - Jugador ${playerId} (Min ${minute})`, true);
+            Swal.fire({
+              title: 'Tarjeta',
+              text: `Jugador ${playerId} - ${cardLabel} (Min ${minute})`,
+              icon: 'warning',
+              toast: true,
+              position: 'top-end',
+              showConfirmButton: false,
+              timer: 3000
+            });
+            this.triggerVisualEffect(cardTypeVal === 0 ? 'yellow' : 'red', cardLabel);
+          } else if (evType === 'Substitution') {
+            const pin = latest.PlayerInId ?? latest.playerInId;
+            const pout = latest.PlayerOutId ?? latest.playerOutId;
+            this.logEvent(`🔄 Cambio - In:${pin} Out:${pout} (Min ${minute})`, true);
+            Swal.fire({
+              title: 'Cambio',
+              text: `In: ${pin} - Out: ${pout} (Min ${minute})`,
+              icon: 'info',
+              toast: true,
+              position: 'top-end',
+              showConfirmButton: false,
+              timer: 3000
+            });
+          } else if (evType === 'Goal') {
+            const scorerId = latest.PlayerId ?? latest.playerId;
+            this.logEvent(`⚽ GOL - Jugador ${scorerId} (Min ${minute})`, true);
+            Swal.fire({
+              title: '¡GOL!',
+              text: `Jugador ${scorerId} (Min ${minute})`,
+              icon: 'success',
+              toast: true,
+              position: 'top-end',
+              showConfirmButton: false,
+              timer: 3000
+            });
+            this.triggerVisualEffect('goal', 'GOL!!!!');
+          }
+          // Asegurar que la lista lateral refleje el score actualizado
+          const matchInListAfter = this.inProgressMatches.find(m => m.matchId === payloadIdStats);
+          if (matchInListAfter) {
+            matchInListAfter.homeScore = statsData.HomeScore ?? statsData.homeScore ?? matchInListAfter.homeScore;
+            matchInListAfter.awayScore = statsData.AwayScore ?? statsData.awayScore ?? matchInListAfter.awayScore;
+          }
+        }
+        // Actualiza en la lista lateral
+        const matchInList = this.inProgressMatches.find(m => m.matchId === payloadIdStats);
+        if (matchInList) {
+          matchInList.homeScore = statsData.HomeScore ?? statsData.homeScore;
+          matchInList.awayScore = statsData.AwayScore ?? statsData.awayScore;
+        }
+        this.updateMatchInfoDisplay();
+        // No need to fetch again since we updated locally
       }
     });
+  }
+
+  private getMatchIdFromPayload(payload: any): string | null {
+    if (!payload) return null;
+    return payload.matchId ?? payload.MatchId ?? null;
   }
 
   loadInitialData(): void {
@@ -266,7 +392,7 @@ export class MatchDashboard implements OnInit, OnDestroy {
         };
         this.updateMatchInfoDisplay();
         this.loadMatchLists();
-        this.signalRService.joinMatchGroup(this.currentMatchId!.toString());
+        this.signalRService.joinMatchGroup(this.currentMatchId!);
 
         // Initialize odds in consumer
         const oddsBody = {
@@ -382,8 +508,8 @@ export class MatchDashboard implements OnInit, OnDestroy {
         this.currentMatchId = response.matchId;
         this.matchDetails[this.currentMatchId!] = {
           matchId: response.matchId,
-          homeTeamName: response.homeTeamName,
-          awayTeamName: response.awayTeamName,
+          homeTeamName: body.homeTeamName,
+          awayTeamName: body.awayTeamName,
           homeTeamId: 1,
           awayTeamId: 2,
           homeScore: 0,
@@ -391,16 +517,27 @@ export class MatchDashboard implements OnInit, OnDestroy {
           status: 1
         };
         this.updateMatchInfoDisplay();
+
+        // Agrega el partido localmente a la lista en vivo para actualización inmediata
+        this.inProgressMatches.push({
+          matchId: response.matchId,
+          homeTeamName: body.homeTeamName,
+          awayTeamName: body.awayTeamName,
+          homeScore: 0,
+          awayScore: 0,
+          status: 1
+        });
+
         this.loadMatchLists();
-        this.signalRService.joinMatchGroup(this.currentMatchId!.toString());
+        this.signalRService.joinMatchGroup(this.currentMatchId!);
 
         // Initialize odds in consumer
         const oddsBody = {
           matchId: this.currentMatchId,
           homeTeamId: 1,
           awayTeamId: 2,
-          homeTeamName: response.homeTeamName,
-          awayTeamName: response.awayTeamName
+          homeTeamName: body.homeTeamName,
+          awayTeamName: body.awayTeamName
         };
         this.matchService.startMatchWithOdds(oddsBody).subscribe();
 
@@ -441,7 +578,7 @@ export class MatchDashboard implements OnInit, OnDestroy {
     }
   }
 
-  private fetchMatchAndStats(matchId: number | null): void {
+  private fetchMatchAndStats(matchId: string | null): void {
     if (!matchId) return;
     let matchInfo = this.inProgressMatches.find(m => m.matchId === matchId) ||
       this.finishedMatches.find(m => m.matchId === matchId);
@@ -482,7 +619,8 @@ export class MatchDashboard implements OnInit, OnDestroy {
   }
 
   private updateMatchInfoDisplay(): void {
-    // This will be handled in the template
+    // Forzar detección de cambios para actualizaciones provenientes de SignalR
+    try { this.cd.detectChanges(); } catch { }
   }
 
   private updateButtonsState(): void {
@@ -512,20 +650,21 @@ export class MatchDashboard implements OnInit, OnDestroy {
   }
 
   viewMatch(matchId: number): void {
-    const match = this.inProgressMatches.find(m => m.matchId === matchId) || this.finishedMatches.find(m => m.matchId === matchId);
+    const id = String(matchId);
+    const match = this.inProgressMatches.find(m => m.matchId === id) || this.finishedMatches.find(m => m.matchId === id);
     if (match) {
-      this.matchDetails[matchId] = { ...match, homeTeamId: 1, awayTeamId: 2 };
+      this.matchDetails[id] = { ...match, homeTeamId: 1, awayTeamId: 2 };
       this.updateMatchInfoDisplay();
       if (match.status === 1) {
-        this.signalRService.joinMatchGroup(matchId.toString());
+        this.signalRService.joinMatchGroup(id);
       }
     }
-    this.currentMatchId = matchId;
+    this.currentMatchId = id;
     this.loadMatchBtn();
   }
 
 
-  private setMatchDetails(matchId: number, stats: any, matchInfo: any, homeScore: number, awayScore: number, odds?: any): void {
+  private setMatchDetails(matchId: string, stats: any, matchInfo: any, homeScore: number, awayScore: number, odds?: any): void {
     this.matchDetails[matchId] = {
       homeTeamName: stats.homeTeamName || matchInfo?.homeTeamName || 'Desconocido',
       awayTeamName: stats.awayTeamName || matchInfo?.awayTeamName || 'Desconocido',

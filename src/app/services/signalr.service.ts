@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
+import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { BehaviorSubject } from 'rxjs';
 import { environment } from '../../environments/environment';
 
@@ -16,6 +16,7 @@ export class SignalRService {
     startConnection(): void {
         this.hubConnection = new HubConnectionBuilder()
             .withUrl(`${environment.consumerApiBaseUrl}/notificationsHub`)
+            .withAutomaticReconnect()
             .configureLogging(LogLevel.Information)
             .build();
 
@@ -48,14 +49,14 @@ export class SignalRService {
     }
 
     joinMatchGroup(matchId: string): void {
-        if (this.hubConnection && this.hubConnection.state === 'Connected') {
+        if (this.hubConnection && this.hubConnection.state === HubConnectionState.Connected) {
             this.hubConnection.invoke('JoinMatchGroup', matchId)
                 .catch(err => console.error('Error joining match group:', err));
         }
     }
 
     leaveMatchGroup(matchId: string): void {
-        if (this.hubConnection && this.hubConnection.state === 'Connected') {
+        if (this.hubConnection && this.hubConnection.state === HubConnectionState.Connected) {
             this.hubConnection.invoke('LeaveMatchGroup', matchId)
                 .catch(err => console.error('Error leaving match group:', err));
         }
@@ -63,49 +64,81 @@ export class SignalRService {
 
     onMatchStarted(callback: (message: any) => void): void {
         if (this.hubConnection) {
-            this.hubConnection.on('MatchStarted', callback);
+            this.hubConnection.on('MatchStarted', (msg: any) => {
+                let payload = msg;
+                try { payload = JSON.parse(msg); } catch { }
+                callback(payload);
+            });
         }
     }
 
     onMatchEnded(callback: (message: any) => void): void {
         if (this.hubConnection) {
-            this.hubConnection.on('MatchEnded', callback);
+            this.hubConnection.on('MatchEnded', (msg: any) => {
+                let payload = msg;
+                try { payload = JSON.parse(msg); } catch { }
+                callback(payload);
+            });
         }
     }
 
     onGoalEvent(callback: (message: any) => void): void {
         if (this.hubConnection) {
-            this.hubConnection.on('Goal', callback);
+            this.hubConnection.on('Goal', (msg: any) => {
+                let payload = msg;
+                try { payload = JSON.parse(msg); } catch { }
+                callback(payload);
+            });
         }
     }
 
     onCardEvent(callback: (message: any) => void): void {
         if (this.hubConnection) {
-            this.hubConnection.on('Card', callback);
+            this.hubConnection.on('Card', (msg: any) => {
+                let payload = msg;
+                try { payload = JSON.parse(msg); } catch { }
+                callback(payload);
+            });
         }
     }
 
     onSubstitutionEvent(callback: (message: any) => void): void {
         if (this.hubConnection) {
-            this.hubConnection.on('Substitution', callback);
+            this.hubConnection.on('Substitution', (msg: any) => {
+                let payload = msg;
+                try { payload = JSON.parse(msg); } catch { }
+                callback(payload);
+            });
         }
     }
 
     onOddsUpdate(callback: (message: any) => void): void {
         if (this.hubConnection) {
-            this.hubConnection.on('OddsUpdate', callback);
+            this.hubConnection.on('OddsUpdate', (msg: any) => {
+                let payload = msg;
+                try { payload = JSON.parse(msg); } catch { }
+                callback(payload);
+            });
         }
     }
 
     onJoinedGroup(callback: (message: any) => void): void {
         if (this.hubConnection) {
-            this.hubConnection.on('joinedgroup', callback);
+            this.hubConnection.on('JoinedGroup', (msg: any) => {
+                let payload = msg;
+                try { payload = JSON.parse(msg); } catch { }
+                callback(payload);
+            });
         }
     }
 
     onMatchStatsUpdated(callback: (message: any) => void): void {
         if (this.hubConnection) {
-            this.hubConnection.on('matchstatsupdated', callback);
+            this.hubConnection.on('MatchStatsUpdated', (msg: any) => {
+                let payload = msg;
+                try { payload = JSON.parse(msg); } catch { }
+                callback(payload);
+            });
         }
     }
 }

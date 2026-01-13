@@ -75,7 +75,7 @@ export class MatchService {
         );
     }
 
-    getMatchStatistics(matchId: number): Observable<any | null> {
+    getMatchStatistics(matchId: string): Observable<any | null> {
         return this.http.get<any>(`${environment.consumerApiBaseUrl}/api/match-statistics/${matchId}`).pipe(
             catchError(error => {
                 console.error(`Error en getMatchStatistics:`, error);
@@ -94,7 +94,7 @@ export class MatchService {
     }
 
 
-    getOdds(matchId: number): Observable<any | null> {
+    getOdds(matchId: string): Observable<any | null> {
         return this.http.get<any>(`${environment.consumerApiBaseUrl}/api/odds/${matchId}`).pipe(
             catchError(error => {
                 console.error(`Error en getOdds:`, error);
